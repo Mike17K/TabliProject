@@ -3,6 +3,7 @@ import sys
 from UI.state import UIState
 from UI.events import handleEvents
 from UI.visuals import DrawState
+
 pygame.init()
 
 state = UIState().get_instance()
@@ -12,15 +13,13 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == pygame.KEYDOWN: 
+        if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                print(state.board.GetBestMoveForDices(dice1=5,dice2=6,is_white=True))
+                print(state.board.GetBestMoveForDices(dice1=6, dice2=6, is_white=True))
 
-        handleEvents(event,state)
-        
-    DrawState(state)    
+        handleEvents(event, state)
 
-    
+    DrawState(state)
 
     pygame.display.flip()
 
