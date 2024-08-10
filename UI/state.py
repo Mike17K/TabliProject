@@ -1,7 +1,7 @@
 from UI.constants import whitePiece, blackPiece, PIECE_WIDTH, OFFSETS
 from UI.visuals import screen
 from UI.events import encodeMove
-import pygame
+import random
 
 
 class Board:
@@ -16,6 +16,10 @@ class Board:
         # black pieces -1 -> ..
         # white pieces 1 -> ..
 
+        self.dice1 = None
+        self.dice2 = None
+        self.is_white_turn = True
+
         # setup start board
         self.board[0] = 2
         self.board[11] = 5
@@ -26,6 +30,11 @@ class Board:
         self.board[5] = -5
         self.board[7] = -3
         self.board[12] = -5
+
+    def RollDices(self):
+        self.dice1 = random.randint(1, 6)
+        self.dice2 = random.randint(1, 6)
+        return self.dice1, self.dice2
 
     @staticmethod
     def From(board):
@@ -49,32 +58,24 @@ class Board:
                 for white_piece_index in range(self.board[board_index] - reduce):
                     if board_index > 11:
                         screen.blit(
-                            pygame.transform.scale(
-                                whitePiece, (PIECE_WIDTH, PIECE_WIDTH)
-                            ),
+                            whitePiece,
                             (x, y - white_piece_index * PIECE_WIDTH),
                         )
                     else:
                         screen.blit(
-                            pygame.transform.scale(
-                                whitePiece, (PIECE_WIDTH, PIECE_WIDTH)
-                            ),
+                            whitePiece,
                             (x, y + white_piece_index * PIECE_WIDTH),
                         )
             else:
                 for black_piece_index in range(-self.board[board_index] + reduce):
                     if board_index > 11:
                         screen.blit(
-                            pygame.transform.scale(
-                                blackPiece, (PIECE_WIDTH, PIECE_WIDTH)
-                            ),
+                            blackPiece,
                             (x, y - black_piece_index * PIECE_WIDTH),
                         )
                     else:
                         screen.blit(
-                            pygame.transform.scale(
-                                blackPiece, (PIECE_WIDTH, PIECE_WIDTH)
-                            ),
+                            blackPiece,
                             (x, y + black_piece_index * PIECE_WIDTH),
                         )
 

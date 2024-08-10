@@ -8,6 +8,10 @@ pygame.init()
 
 state = UIState().get_instance()
 
+state.board.is_white_turn = (
+    True  # TODO make at first the players to roll dices to deside the turn
+)
+
 running = True
 while running:
     for event in pygame.event.get():
@@ -15,7 +19,12 @@ while running:
             running = False
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                print(state.board.GetBestMoveForDices(dice1=6, dice2=6, is_white=True))
+                dice1, dice2 = state.board.RollDices()
+                print(
+                    state.board.GetBestMoveForDices(
+                        dice1=dice1, dice2=dice2, is_white=True
+                    )
+                )
 
         handleEvents(event, state)
 
