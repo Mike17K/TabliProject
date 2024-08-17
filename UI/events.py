@@ -54,9 +54,7 @@ def handleEvents(event, state: UIState):
     if event.type == pygame.MOUSEBUTTONUP:
         if state.holding_piece is not None:
             clicked_index = get_board_index(*pygame.mouse.get_pos())
-            board.move(
-                state.holding_piece_previews_index, clicked_index
-            )
+            board.move(state.holding_piece_previews_index, clicked_index)
         state.holding_piece = None
         state.holding_piece_previews_index = None
     if event.type == pygame.KEYDOWN:
