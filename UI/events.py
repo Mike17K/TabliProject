@@ -6,6 +6,7 @@ from UI.constants import (
     SECTION_TOP_RIGHT,
     OFFSETS,
 )
+from UI.state import UIState
 
 
 def get_board_index(x, y) -> int:
@@ -24,12 +25,9 @@ def get_board_index(x, y) -> int:
     return None
 
 
-def encodeMove(from_index, to_index):
-    # 0 -> 25 + 0 -> 23  = 2 letters
-    return chr(from_index + 65) + chr(to_index + 65)
 
-
-def handleEvents(event, state):
+def handleEvents(event, state: UIState):
+    board = state.get_board()
     if event.type == pygame.MOUSEBUTTONDOWN:
         clicked_index = get_board_index(*pygame.mouse.get_pos())
         # if there is not piece on the clicked index do nothing
@@ -37,27 +35,30 @@ def handleEvents(event, state):
             state.holding_piece is None
             and clicked_index in [24, 25]
             and (
-                1 in state.board.captured_pieces
+                1 in board.captured_pieces
                 if clicked_index == 24
-                else -1 in state.board.captured_pieces
+                else -1 in board.captured_pieces
             )
-            and state.board.is_white_turn == (clicked_index == 24)
+            and board.is_white_turn == (clicked_index == 24)
         ):
             state.holding_piece = 1 if clicked_index == 24 else -1
             state.holding_piece_previews_index = clicked_index
         if (
             clicked_index is not None
             and 0 <= clicked_index < 24
-            and state.board.board[clicked_index] != 0
-            and state.board.is_white_turn == (state.board.board[clicked_index] > 0)
+            and board.board[clicked_index] != 0
+            and board.is_white_turn == (board.board[clicked_index] > 0)
         ):
-            state.holding_piece = 1 if state.board.board[clicked_index] > 0 else -1
+            state.holding_piece = 1 if board.board[clicked_index] > 0 else -1
             state.holding_piece_previews_index = clicked_index
     if event.type == pygame.MOUSEBUTTONUP:
         if state.holding_piece is not None:
             clicked_index = get_board_index(*pygame.mouse.get_pos())
-            state.board = state.board.move(
+            board.move(
                 state.holding_piece_previews_index, clicked_index
             )
         state.holding_piece = None
         state.holding_piece_previews_index = None
+    if event.type == pygame.KEYDOWN:
+        if event.key == pygame.K_SPACE:
+            board.RollDices()

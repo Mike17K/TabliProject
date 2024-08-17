@@ -7,8 +7,11 @@ from UI.constants import (
     whitePiece,
     blackPiece,
     PIECE_WIDTH,
+    OFFSETS,
     diceImageDict,
 )
+from UI.state import UIState
+from Compute.board import Board
 
 screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Simple Pygame Window")
@@ -21,16 +24,16 @@ prevdice1 = 0
 prevdice2 = 0
 
 
-def DrawState(state):
+def DrawState(state: UIState):
     global ydiceoffset1, ydiceoffset2, prevdice1, prevdice2, xdieoffset1, xdieoffset2
     # Draw the background image
     screen.blit(background_image, (0, 0))
 
-    state.board.draw(state.holding_piece_previews_index)
+    DrawBoard(board=state.get_board(), holding_index=state.holding_piece_previews_index)
 
     # Draw the dices
-    dice1 = state.board.dice1
-    dice2 = state.board.dice2
+    dice1 = state.get_board().dice1
+    dice2 = state.get_board().dice2
     if dice1 is not None and dice2 is not None:
         if dice1 != prevdice1 or dice2 != prevdice2:
             ydiceoffset1 = random.randint(-10, 10)
@@ -39,7 +42,7 @@ def DrawState(state):
             xdieoffset2 = random.randint(-10, 10)
             prevdice1 = dice1
             prevdice2 = dice2
-        if state.board.is_white_turn:
+        if state.get_board().is_white_turn:
             screen.blit(
                 diceImageDict[dice1],
                 (
@@ -67,7 +70,7 @@ def DrawState(state):
     # Draw the captured pieces
     captured_black_index = 0
     captured_white_index = 0
-    tmp = state.board.captured_pieces[::]
+    tmp = state.get_board().captured_pieces[::]
     (
         tmp.remove(state.holding_piece)
         if state.holding_piece in tmp and state.holding_piece_previews_index in [24, 25]
@@ -110,3 +113,45 @@ def DrawState(state):
                 blackPiece,
                 (x - PIECE_WIDTH / 2, y - PIECE_WIDTH / 2),
             )
+
+def DrawBoard(board:Board, holding_index=None):
+    for board_index in range(6 * 4):
+        if board.board[board_index] == 0:
+            continue
+        reduce = (
+            (1 if board.board[holding_index] > 0 else -1)
+            if holding_index == board_index and board.board[holding_index] != 0
+            else 0
+        )
+
+        x, y = OFFSETS[board_index]
+        if board.board[board_index] > 0:
+            for white_piece_index in range(board.board[board_index] - reduce):
+                if board_index > 11:
+                    screen.blit(
+                        whitePiece,
+                        (x, y - white_piece_index * PIECE_WIDTH),
+                    )
+                else:
+                    screen.blit(
+                        whitePiece,
+                        (x, y + white_piece_index * PIECE_WIDTH),
+                    )
+        else:
+            for black_piece_index in range(-board.board[board_index] + reduce):
+                if board_index > 11:
+                    screen.blit(
+                        blackPiece,
+                        (x, y - black_piece_index * PIECE_WIDTH),
+                    )
+                else:
+                    screen.blit(
+                        blackPiece,
+                        (x, y + black_piece_index * PIECE_WIDTH),
+                    )
+    
+    available_moves = list(board.available_moves)
+    for i in range(len(available_moves)):
+        from_index, to_index = available_moves[i]
+        pygame.draw.rect(screen, (255, 0, 0), (OFFSETS[from_index][0], OFFSETS[from_index][1], PIECE_WIDTH, PIECE_WIDTH), 3)
+        pygame.draw.rect(screen, (0, 255, 0), (OFFSETS[to_index][0], OFFSETS[to_index][1], PIECE_WIDTH, PIECE_WIDTH), 3)
