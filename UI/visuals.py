@@ -46,14 +46,14 @@ def DrawState(state: UIState):
             screen.blit(
                 diceImageDict[dice1],
                 (
-                    screen_width * 3 / 4 - xdieoffset1 - 20,
+                    screen_width * 3 / 4 - xdieoffset1 - 30,
                     screen_height / 2 - ydiceoffset1,
                 ),
             )
             screen.blit(
                 diceImageDict[dice2],
                 (
-                    screen_width * 3 / 4 - xdieoffset2 + 20,
+                    screen_width * 3 / 4 - xdieoffset2 + 30,
                     screen_height / 2 - ydiceoffset2,
                 ),
             )
@@ -153,5 +153,13 @@ def DrawBoard(board:Board, holding_index=None):
     available_moves = list(board.available_moves)
     for i in range(len(available_moves)):
         from_index, to_index = available_moves[i]
-        pygame.draw.rect(screen, (255, 0, 0), (OFFSETS[from_index][0], OFFSETS[from_index][1], PIECE_WIDTH, PIECE_WIDTH), 3)
-        pygame.draw.rect(screen, (0, 255, 0), (OFFSETS[to_index][0], OFFSETS[to_index][1], PIECE_WIDTH, PIECE_WIDTH), 3)
+        if from_index == 24: # white captured pieces
+            pygame.draw.rect(screen, (255, 0, 0), (screen_width / 2 - PIECE_WIDTH / 2,screen_height / 2+ 0 * PIECE_WIDTH+ PIECE_WIDTH / 2 , PIECE_WIDTH, PIECE_WIDTH), 3)
+        elif from_index == 25: # black captured pieces
+            pygame.draw.rect(screen, (0, 255, 0), (screen_width / 2 - PIECE_WIDTH / 2,screen_height / 2- 0 * PIECE_WIDTH- 3 * PIECE_WIDTH / 2, PIECE_WIDTH, PIECE_WIDTH), 3)
+        else:
+            # normal pieces
+            pygame.draw.rect(screen, (255, 0, 0), (OFFSETS[from_index][0], OFFSETS[from_index][1], PIECE_WIDTH, PIECE_WIDTH), 3)
+        if to_index < 24:
+            pygame.draw.rect(screen, (0, 255, 0), (OFFSETS[to_index][0], OFFSETS[to_index][1], PIECE_WIDTH, PIECE_WIDTH), 3)
+

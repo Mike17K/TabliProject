@@ -17,6 +17,10 @@ while running:
 
     DrawState(state)
 
+    if "won" in state.get_board().state:
+        print("Game Over: ", state.get_board().state)
+        running = False
+
     pygame.display.flip()
 
 pygame.quit()

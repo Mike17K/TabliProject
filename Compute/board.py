@@ -11,6 +11,7 @@ class Board:
     def __init__(self):
         self.is_white_turn = True
         self.board = [2,0,0,0,0,-5 ,0,-3,0,0,0,5, -5,0,0,0,3,0 ,5,0,0,0,0,-2]
+        # self.board = [-2,-2,-2,-3,-3,-3 ,0,0,0,0,0,0 ,0,0,0,0,0,0, 2,2,2,3,3,3]
 
         self.captured_pieces = []  # -1 , 1 ,-1..
 
@@ -24,6 +25,8 @@ class Board:
         self.available_moves = set()
 
     def RollDices(self):
+        if self.dice1 != None and self.dice2 != None:
+            return self.dice1, self.dice2
         self.dice1 = random.randint(1, 6)
         self.dice2 = random.randint(1, 6)
         self.state = "waiting-for-move"
@@ -32,6 +35,15 @@ class Board:
         return self.dice1, self.dice2
 
     def GetState(self) -> str:
+        piece_count = [0,0] # white, black
+        for i in range(24):
+            if self.board[i] > 0: piece_count[0] += 1
+            if self.board[i] < 0: piece_count[1] += 1
+        if piece_count[0] == 0:
+            return "white-won"
+        if piece_count[1] == 0:
+            return "black-won"
+
         if self.dice1 == None or self.dice2 == None:
             return "rolling-the-dices"
         if Board.HISTORY[-1] != self: return self.state
@@ -65,16 +77,46 @@ class Board:
 
     def move(self, from_index, to_index, commit=True) -> "Board":
         if (from_index, to_index) not in self.available_moves:
+            print("not available move")
             return self
-        if abs(to_index - from_index) not in [self.dice1, self.dice2]:
-            return self
-        if to_index < 0 or to_index > 23:
-            return self  # not correct move the index must be in the board
         # index 24, 25 is the middle section for white and black
         if self.dice1 == None or self.dice2 == None:
             return self
         newBoard = Board.From(self)
-        newBoard.translations.remove(abs(to_index - from_index))
+        if from_index in [24, 25]: newBoard.translations.remove(abs(to_index - (-1 if from_index == 24 else 24)))
+        elif to_index in [26, 27]: 
+            # find the first number equal or greater than the number
+            number = (24-from_index) if to_index == 26 else (1+from_index)
+            for i in range(number,7):
+                if i in newBoard.translations:
+                    newBoard.translations.remove(i)
+                    break
+        else: newBoard.translations.remove(abs(to_index - from_index))
+
+        print(from_index, to_index)
+        # check if the move is for removing pieces
+        if to_index == 26:
+            if self.board[from_index] > 0:
+                newBoard.board[from_index] -= 1
+
+            if commit:
+                newAvailableMoves = set()
+                for i in newBoard.translations:
+                    newAvailableMoves = newAvailableMoves.union(set(newBoard.GetAvailableMovesFromDice(dice=i)))
+                newBoard.available_moves = newAvailableMoves
+                return newBoard.Commit()
+            return newBoard
+        if to_index == 27:
+            if self.board[from_index] < 0:
+                newBoard.board[from_index] += 1
+
+            if commit:
+                newAvailableMoves = set()
+                for i in newBoard.translations:
+                    newAvailableMoves = newAvailableMoves.union(set(newBoard.GetAvailableMovesFromDice(dice=i)))
+                newBoard.available_moves = newAvailableMoves
+                return newBoard.Commit()
+            return newBoard
         
         if from_index == 24 and 1 in self.captured_pieces:
             if self.board[to_index] < -1:
@@ -190,6 +232,41 @@ class Board:
             is_white = self.is_white_turn
 
         moves: list[int, int] = []
+        if len(self.captured_pieces)!=0:
+            if is_white and 1 in self.captured_pieces: # white has captured pieces
+                if self.board[dice-1] >= -1:
+                    moves.append((24, dice-1))
+                return moves
+            if not is_white and -1 in self.captured_pieces:
+                if self.board[24-dice] <= 1:
+                    moves.append((25, 24-dice))
+                return moves
+
+        # check if there is the state for removing pieces
+        piece_count = [0,0] # white, black
+        for i in range(24):
+            if self.board[i] > 0: piece_count[0] += self.board[i]
+            if self.board[i] < 0: piece_count[1] += -self.board[i]
+        if is_white and self.captured_pieces.count(1) == 0:
+            if piece_count[0] == self.board[23] + self.board[22] + self.board[21] + self.board[20] + self.board[19] + self.board[18]:
+                # state for removing pieces
+                for i in range(dice):
+                    index = 24 - dice + i
+                    if self.board[index] > 0:
+                        print((index, 26))
+                        moves.append((index, 26))
+                        break
+        elif not is_white and self.captured_pieces.count(-1) == 0:
+            if piece_count[1] == -self.board[5] - self.board[4] - self.board[3] - self.board[2] - self.board[1] - self.board[0]:
+                # state for removing pieces
+                for i in range(dice):
+                    index = dice - 1 - i
+                    if self.board[index] < 0:
+                        print((index, 27))
+                        moves.append((index, 27))
+                        break
+
+
         for i in range(24 - dice):
             index = i if is_white else (dice + i)
             next_index = index + dice * (1 if is_white else -1)
@@ -206,7 +283,7 @@ class Board:
         return moves
 
     def CostOfMove(self, from_index, to_index) -> float:
-        newBoard = self.move(from_index, to_index)
+        newBoard = self.move(from_index, to_index,commit=False)
         # evaluate the board
         score = 0
         for i in range(24):
@@ -229,21 +306,21 @@ class Board:
         for dice1 in range(1, 7):
             moves1 = self.GetAvailableMovesFromDice(dice1, is_white)
             for m in moves1:
-                tmpBoard = self.move(m[0], m[1])
+                tmpBoard = self.move(m[0], m[1],False)
                 for dice2 in range(1, 7):
                     moves2 = tmpBoard.GetAvailableMovesFromDice(dice2, is_white)
                     for m2 in moves2:
-                        tmpBoard2 = tmpBoard.move(m2[0], m2[1])
+                        tmpBoard2 = tmpBoard.move(m2[0], m2[1],False)
                         if dice1 == dice2:
                             moves3 = tmpBoard2.GetAvailableMovesFromDice(
                                 dice2, is_white
                             )
                             for m3 in moves3:
-                                tmpBoard3 = tmpBoard2.move(m3[0], m3[1])
+                                tmpBoard3 = tmpBoard2.move(m3[0], m3[1],False)
                                 for m4 in tmpBoard3.GetAvailableMovesFromDice(
                                     dice2, is_white
                                 ):
-                                    tmpBoard4 = tmpBoard3.move(m4[0], m4[1])
+                                    tmpBoard4 = tmpBoard3.move(m4[0], m4[1],False)
                                     costs.append(tmpBoard4.CostOfMove(m4[0], m4[1]))
                         else:
                             costs.append(tmpBoard2.CostOfMove(m2[0], m2[1]))
