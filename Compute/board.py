@@ -32,6 +32,10 @@ class Board:
         self.state = "waiting-for-move"
         self.translations = [self.dice1,self.dice2] if self.dice1 != self.dice2 else [self.dice1,self.dice1,self.dice1,self.dice1]
         self.available_moves = set(self.GetAvailableMovesFromDice(dice=self.dice2, is_white=self.is_white_turn)).union(set(self.GetAvailableMovesFromDice(dice=self.dice1, is_white=self.is_white_turn)))
+        print("len: ",len(self.available_moves))
+        if len(self.available_moves) == 0:
+            self.Commit()
+
         return self.dice1, self.dice2
 
     def GetState(self) -> str:
@@ -280,19 +284,21 @@ class Board:
                 or self.board[next_index] * (1 if is_white else -1) > 0
             ):
                 moves.append((index, next_index))
-        return moves
 
-    def CostOfMove(self, from_index, to_index) -> float:
-        newBoard = self.move(from_index, to_index,commit=False)
+        # update the available moves 
+        self.available_moves = self.available_moves.union(set(moves))
+        return moves
+    
+    def GetCost(self):
         # evaluate the board
         score = 0
         for i in range(24):
-            if newBoard.board[i] == 0:
+            if self.board[i] == 0:
                 continue
             # score += newBoard.board[i] * (i-(22 if newBoard.board[i] > 0 else 2))
-            if newBoard.board[i] == 1:
+            if self.board[i] == 1:
                 score += -10
-            if newBoard.board[i] == -1:
+            if self.board[i] == -1:
                 score += 10
         # the closer to the end the better
         # the more linear distribution on end the better
@@ -303,27 +309,11 @@ class Board:
     def EvaluateBoard(self, is_white: bool) -> float:
         # for each combination of the dises take the sum of the cost of the moves
         costs = []
-        for dice1 in range(1, 7):
-            moves1 = self.GetAvailableMovesFromDice(dice1, is_white)
-            for m in moves1:
-                tmpBoard = self.move(m[0], m[1],False)
-                for dice2 in range(1, 7):
-                    moves2 = tmpBoard.GetAvailableMovesFromDice(dice2, is_white)
-                    for m2 in moves2:
-                        tmpBoard2 = tmpBoard.move(m2[0], m2[1],False)
-                        if dice1 == dice2:
-                            moves3 = tmpBoard2.GetAvailableMovesFromDice(
-                                dice2, is_white
-                            )
-                            for m3 in moves3:
-                                tmpBoard3 = tmpBoard2.move(m3[0], m3[1],False)
-                                for m4 in tmpBoard3.GetAvailableMovesFromDice(
-                                    dice2, is_white
-                                ):
-                                    tmpBoard4 = tmpBoard3.move(m4[0], m4[1],False)
-                                    costs.append(tmpBoard4.CostOfMove(m4[0], m4[1]))
-                        else:
-                            costs.append(tmpBoard2.CostOfMove(m2[0], m2[1]))
+
+        for dice1,dice2 in [[i , j] for i in range(1, 7) for j in range(1, 7)]:
+            bestMoves, score = self.GetBestMoveForDices()
+            costs.append(score)
+            
         return sum(costs) / len(costs) if len(costs) > 0 else 0
     
     def CanMovePieceFromTo(self, is_white: bool, from_index: int, to_index: int) -> bool:
@@ -336,45 +326,136 @@ class Board:
             return False
         return True
 
-    def GetBestMoveForDices(
-        self, dice1: int, dice2: int, is_white: bool
-    ) -> list[int, int]:
-        moves1 = self.GetAvailableMovesFromDice(dice1, is_white)
-        moves2 = self.GetAvailableMovesFromDice(dice2, is_white)
-        moves = set(moves1).intersection(moves2)
-        if len(moves) == 0: return []
+    def GetBestMoveForDices(self) -> list[list[list[int, int]], float]:
+        if self.dice1 == None or self.dice2 == None: return []
 
-        best_moves = [list(moves)[0]] if len(moves) > 0 else []
+        best_move1 = None
+        best_move2 = None
+        best_move3 = None
+        best_move4 = None
         best_cost = None
-        for m1 in moves1:
-            tmpBoard = self.move(m1[0], m1[1])
-            for m2 in moves2:
-                tmpBoard2 = tmpBoard.move(m2[0], m2[1])
-                if dice1 == dice2:
-                    moves3 = tmpBoard2.GetAvailableMovesFromDice(dice2, is_white)
+
+        if self.dice1 == self.dice2:
+            for m1 in self.GetAvailableMovesFromDice(self.dice1, self.is_white_turn):
+                tmpBoard = self.move(m1[0], m1[1],commit=False)
+                moves2 = tmpBoard.GetAvailableMovesFromDice(self.dice2, self.is_white_turn)
+                if len(moves2) == 0:
+                    cost = tmpBoard.GetCost()
+                    if best_cost == None or cost * (
+                        1 if self.is_white_turn else -1
+                    ) >= best_cost * (1 if self.is_white_turn else -1):
+                        best_cost = cost
+                        best_move1 = m1
+                        best_move2 = None
+                        best_move3 = None
+                        best_move4 = None
+                        best_moves = [best_move1]
+                        print(best_cost , best_move1)
+                    continue
+                for m2 in moves2:
+                    tmpBoard2 = tmpBoard.move(m2[0], m2[1],commit=False)
+                    moves3 = tmpBoard2.GetAvailableMovesFromDice(self.dice2, self.is_white_turn)
+                    if len(moves3) == 0:
+                        cost = tmpBoard2.GetCost()
+                        if best_cost == None or cost * (
+                            1 if self.is_white_turn else -1
+                        ) >= best_cost * (1 if self.is_white_turn else -1):
+                            best_cost = cost
+                            best_move1 = m1
+                            best_move2 = m2
+                            best_move3 = None
+                            best_move4 = None
+                            best_moves = [best_move1, best_move2]
+                            print(best_cost , best_move1, best_move2)
+                        continue
                     for m3 in moves3:
-                        tmpBoard3 = tmpBoard2.move(m3[0], m3[1])
-                        for m4 in tmpBoard3.GetAvailableMovesFromDice(dice2, is_white):
-                            tmpBoard4 = tmpBoard3.move(m4[0], m4[1])
-                            cost = tmpBoard4.EvaluateBoard(not is_white)
+                        tmpBoard3 = tmpBoard2.move(m3[0], m3[1],commit=False)
+                        moves4 = tmpBoard3.GetAvailableMovesFromDice(self.dice2, self.is_white_turn)
+                        if len(moves4) == 0:
+                            cost = tmpBoard3.GetCost()
                             if best_cost == None or cost * (
-                                1 if is_white else -1
-                            ) >= best_cost * (1 if is_white else -1):
+                                1 if self.is_white_turn else -1
+                            ) >= best_cost * (1 if self.is_white_turn else -1):
+                                best_cost = cost
+                                best_move1 = m1
+                                best_move2 = m2
+                                best_move3 = m3
+                                best_move4 = None
+                                best_moves = [best_move1, best_move2, best_move3]
+                                print(best_cost , best_move1, best_move2, best_move3)
+                            continue
+                        for m4 in moves4:
+                            tmpBoard4 = tmpBoard3.move(m4[0], m4[1],commit=False)
+                            cost = tmpBoard4.GetCost()
+                            if best_cost == None or cost * (
+                                1 if self.is_white_turn else -1
+                            ) >= best_cost * (1 if self.is_white_turn else -1):
                                 best_cost = cost
                                 best_move1 = m1
                                 best_move2 = m2
                                 best_move3 = m3
                                 best_move4 = m4
-                                print(best_cost)
-                else:
-                    cost = tmpBoard2.EvaluateBoard(not is_white)
+                                best_moves = [best_move1, best_move2, best_move3, best_move4]
+                                print(best_cost, best_move1, best_move2, best_move3, best_move4)
+        else:
+            for m1 in self.GetAvailableMovesFromDice(self.dice1, self.is_white_turn):
+                tmpBoard = self.move(m1[0], m1[1],commit=False)
+                moves1 = tmpBoard.GetAvailableMovesFromDice(self.dice2, self.is_white_turn)
+                if len(moves1) == 0:
+                    cost = tmpBoard.GetCost()
                     if best_cost == None or cost * (
-                        1 if is_white else -1
-                    ) >= best_cost * (1 if is_white else -1):
+                        1 if self.is_white_turn else -1
+                    ) >= best_cost * (1 if self.is_white_turn else -1):
+                        best_cost = cost
+                        best_move1 = m1
+                        best_move2 = None
+                        best_move3 = None
+                        best_move4 = None
+                        best_moves = [best_move1]
+                        print(best_cost , best_move1)
+                    continue
+                for m2 in moves1:
+                    tmpBoard2 = tmpBoard.move(m2[0], m2[1],commit=False)
+                    cost = tmpBoard2.GetCost()
+                    if best_cost == None or cost * (
+                        1 if self.is_white_turn else -1
+                    ) >= best_cost * (1 if self.is_white_turn else -1):
                         best_cost = cost
                         best_move1 = m1
                         best_move2 = m2
                         best_move3 = None
                         best_move4 = None
-                        print(best_cost)
-        return best_moves
+                        best_moves = [best_move1, best_move2]
+                        print(best_cost , best_move1, best_move2)
+            
+            for m1 in self.GetAvailableMovesFromDice(self.dice2, self.is_white_turn):
+                tmpBoard = self.move(m1[0], m1[1],commit=False)
+                moves1 = tmpBoard.GetAvailableMovesFromDice(self.dice1, self.is_white_turn)
+                if len(moves1) == 0:
+                    cost = tmpBoard.GetCost()
+                    if best_cost == None or cost * (
+                        1 if self.is_white_turn else -1
+                    ) >= best_cost * (1 if self.is_white_turn else -1):
+                        best_cost = cost
+                        best_move1 = m1
+                        best_move2 = None
+                        best_move3 = None
+                        best_move4 = None
+                        best_moves = [best_move1]
+                        print(best_cost , best_move1)
+                    continue
+                for m2 in moves1:
+                    tmpBoard2 = tmpBoard.move(m2[0], m2[1],commit=False)
+                    cost = tmpBoard2.GetCost()
+                    if best_cost == None or cost * (
+                        1 if self.is_white_turn else -1
+                    ) >= best_cost * (1 if self.is_white_turn else -1):
+                        best_cost = cost
+                        best_move1 = m1
+                        best_move2 = m2
+                        best_move3 = None
+                        best_move4 = None
+                        best_moves = [best_move1, best_move2]
+                        print(best_cost , best_move1, best_move2)
+        
+        return best_moves , best_cost
