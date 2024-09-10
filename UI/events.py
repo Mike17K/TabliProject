@@ -80,8 +80,11 @@ def handleEvents(event: pygame.event.Event, state: UIState):
 
     if event.type == pygame.KEYDOWN:
         if event.key == pygame.K_SPACE:
-            board.ExecuteAction(RollDiceAction())
-            board.Commit()
+            try:
+                board.ExecuteAction(RollDiceAction())
+                board.Commit()
+            except Exception as e:
+                pass
         if event.key == pygame.K_z and pygame.key.get_mods() & pygame.KMOD_CTRL:
             board.Undo()
 

@@ -70,11 +70,10 @@ def DrawState(state: UIState):
 
     # Draw the captured pieces
     tmp = state.get_board().cuptured.copy()
-    if state.holding_piece in tmp and state.holding_piece_previews_index in [24, 25]:
+    if state.holding_piece != None and state.holding_piece_previews_index in [24, 25]:
         tmp[
             Color.WHITE if state.holding_piece_previews_index == 24 else Color.BLACK
         ] -= 1
-
     for i in range(tmp[Color.WHITE]):
         screen.blit(
             whitePiece,

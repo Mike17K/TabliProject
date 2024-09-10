@@ -43,6 +43,7 @@ class BoardState:
         self.action_to_get_this_state: Action | None = None
         self.is_white_turn = True
         self.dices = [-1, -1]
+        self.translations = []
 
     def ExecuteAction(self, action: Action) -> None:
         """
@@ -80,7 +81,7 @@ class BoardState:
         assert 0 <= to_index < len(self.board)
         assert self.board[from_index] != 0
         assert self.board[from_index] * (1 if self.is_white_turn else -1) > 0
-        assert abs(from_index - to_index) in self.dices
+        assert abs(from_index - to_index) in self.translations
         assert (
             self.board[from_index] * (to_index - from_index) > 0
         )  # ensure that this is the correct way
@@ -100,7 +101,7 @@ class BoardState:
         self.board[from_index] -= 1 if fromIsWhite else -1
         self.board[to_index] += 1 if fromIsWhite else -1
 
-        self.dices.remove(abs(from_index - to_index))
+        self.translations.remove(abs(from_index - to_index))
 
     def removeAction(self, action: RemoveAction) -> None:
         """
@@ -125,11 +126,11 @@ class BoardState:
             if self.board[i] * self.board[from_index] > 0:
                 maxPieceIndex = j + 1
         requestedDice = (24 - from_index) if self.is_white_turn else (from_index + 1)
-        if (requestedDice) in self.dices:
-            self.dices.remove(requestedDice)
+        if (requestedDice) in self.translations:
+            self.translations.remove(requestedDice)
         else:
             assert maxPieceIndex == requestedDice
-            self.dices.remove(max(self.dices))
+            self.translations.remove(max(self.translations))
 
         isWhite = self.board[from_index] > 0
         if isWhite:
@@ -150,15 +151,15 @@ class BoardState:
         )  # ensure that the to index is empty or has only one piece
         assert self.cuptured[color] > 0
         assert (
-            (24 - to_index) in self.dices
+            (to_index + 1) in self.translations
             if color == Color.WHITE
-            else (to_index + 1) in self.dices
+            else (24 - to_index) in self.translations
         )
 
-        if (24 - to_index) in self.dices and color == Color.WHITE:
-            self.dices.remove(24 - to_index)
-        elif (to_index + 1) in self.dices and color == Color.BLACK:
-            self.dices.remove(to_index + 1)
+        if (to_index + 1) in self.translations and color == Color.WHITE:
+            self.translations.remove(to_index + 1)
+        elif (24 - to_index) in self.translations and color == Color.BLACK:
+            self.translations.remove(24 - to_index)
 
         if self.board[to_index] * (-1 if color == Color.WHITE else 1) == 1:
             self.cuptured[Color.BLACK if color == Color.WHITE else Color.WHITE] += 1
@@ -173,7 +174,9 @@ class BoardState:
         dice2 = random.randint(1, 6)
         self.dices = [dice1, dice2]
         if dice1 == dice2:
-            self.dices += [dice1, dice1]
+            self.translations = [dice1] * 4
+        else:
+            self.translations = [dice1, dice2]
 
 
 class Board(BoardState):
@@ -187,6 +190,7 @@ class Board(BoardState):
         newBoard.cuptured = old.cuptured.copy()
         newBoard.is_white_turn = old.is_white_turn
         newBoard.dices = old.dices.copy()
+        newBoard.translations = old.translations.copy()
         return newBoard
 
     def __init__(self):
@@ -196,7 +200,7 @@ class Board(BoardState):
         self.available_moves_calculated = False
         self.available_moves: set[Action] = set()
 
-    def GetAvailableMoves(self) -> set[Action]:
+    def GetAvailableActions(self) -> set[Action]:
         if not self.available_moves_calculated:
             self.available_moves = self.CalculateAvailableActions()
         return self.available_moves
@@ -205,32 +209,46 @@ class Board(BoardState):
         piece_count = [0, 0]  # white, black
         for i in range(24):
             if self.board[i] > 0:
-                piece_count[0] += 1
+                piece_count[0] += self.board[i]
             if self.board[i] < 0:
-                piece_count[1] += 1
+                piece_count[1] += -self.board[i]
         if piece_count[0] == 0:
-            return GameState.WHITE_WINS
+            self.state = GameState.WHITE_WINS
+            return self.state
         if piece_count[1] == 0:
-            return GameState.BLACK_WINS
-
+            self.state = GameState.BLACK_WINS
+            return self.state
+        
         if self.dices == [-1, -1]:
-            return (
+            self.state = (
                 GameState.WHITE_ROLLS if self.is_white_turn else GameState.BLACK_ROLLS
             )
-        if Board.HISTORY[-1] != self:
+            return self.state
+        if len(Board.HISTORY) > 0 and Board.HISTORY[-1] != self:
             return self.state
         # if moved pieces are equal to the final results then call it done
-        if len(self.dices) == 0 or len(self.GetAvailableMoves()) == 0:
-            return (
+        if len(self.translations) == 0 or (self.available_moves_calculated and len(self.available_moves) == 0):
+            self.state = (
                 GameState.BLACK_ROLLS if self.is_white_turn else GameState.WHITE_ROLLS
             )
+            return self.state
 
-        return GameState.WHITE_MOVES if self.is_white_turn else GameState.BLACK_MOVES
+        self.state = GameState.WHITE_MOVES if self.is_white_turn else GameState.BLACK_MOVES
+        return self.state
 
     def Commit(self) -> "Board":
         assert self.action_to_get_this_state != None
 
         newBoard = Board.From(self)
+
+        if (self.dices != [-1, -1] and self.translations == []) or len(self.GetAvailableActions()) == 0:
+            newBoard.is_white_turn = not self.is_white_turn
+            newBoard.dices = [-1, -1]
+            newBoard.translations = []
+            newBoard.available_moves_calculated = False
+            newBoard.available_moves = set()
+            print('New state',newBoard.GetState())
+
         Board.HISTORY.append(newBoard)
 
     @staticmethod
@@ -246,8 +264,16 @@ class Board(BoardState):
 
     ################ Functions Helper #################
 
-    def GetBestMoveForDices(self) -> tuple[Action, float]:
-        pass
-
     def CalculateAvailableActions(self) -> set[Action]:
-        return []
+        state = self.GetState()
+        print(state)
+        if state in [GameState.WHITE_WINS, GameState.BLACK_WINS]:
+            return set()
+        if state in [GameState.WHITE_ROLLS, GameState.BLACK_ROLLS]:
+            return {RollDiceAction()}
+        
+        return {} # TODO
+
+    def GetBestMoveForDices(self) -> tuple[Action, float]:
+        pass # TODO
+
