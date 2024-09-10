@@ -3,6 +3,7 @@ import pygame
 import sys
 from UI.events import handleEvents
 from UI.visuals import DrawState
+from Compute.types import GameState
 
 pygame.init()
 
@@ -17,7 +18,7 @@ while running:
 
     DrawState(state)
 
-    if "won" in state.get_board().state:
+    if state.get_board().state in [GameState.WHITE_WINS, GameState.BLACK_WINS]:
         print("Game Over: ", state.get_board().state)
         running = False
 
