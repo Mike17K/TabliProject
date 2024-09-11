@@ -203,6 +203,7 @@ class Board(BoardState):
     def GetAvailableActions(self) -> set[Action]:
         if not self.available_moves_calculated:
             self.available_moves = self.CalculateAvailableActions()
+            self.available_moves_calculated = True
         return self.available_moves
 
     def GetState(self) -> GameState:
@@ -218,7 +219,7 @@ class Board(BoardState):
         if piece_count[1] == 0:
             self.state = GameState.BLACK_WINS
             return self.state
-        
+
         if self.dices == [-1, -1]:
             self.state = (
                 GameState.WHITE_ROLLS if self.is_white_turn else GameState.BLACK_ROLLS
@@ -227,13 +228,17 @@ class Board(BoardState):
         if len(Board.HISTORY) > 0 and Board.HISTORY[-1] != self:
             return self.state
         # if moved pieces are equal to the final results then call it done
-        if len(self.translations) == 0 or (self.available_moves_calculated and len(self.available_moves) == 0):
+        if len(self.translations) == 0 or (
+            self.available_moves_calculated and len(self.available_moves) == 0
+        ):
             self.state = (
                 GameState.BLACK_ROLLS if self.is_white_turn else GameState.WHITE_ROLLS
             )
             return self.state
 
-        self.state = GameState.WHITE_MOVES if self.is_white_turn else GameState.BLACK_MOVES
+        self.state = (
+            GameState.WHITE_MOVES if self.is_white_turn else GameState.BLACK_MOVES
+        )
         return self.state
 
     def Commit(self) -> "Board":
@@ -241,13 +246,15 @@ class Board(BoardState):
 
         newBoard = Board.From(self)
 
-        if (self.dices != [-1, -1] and self.translations == []) or len(self.GetAvailableActions()) == 0:
+        if (self.dices != [-1, -1] and self.translations == []) or len(
+            self.GetAvailableActions()
+        ) == 0:
             newBoard.is_white_turn = not self.is_white_turn
             newBoard.dices = [-1, -1]
             newBoard.translations = []
             newBoard.available_moves_calculated = False
             newBoard.available_moves = set()
-            print('New state',newBoard.GetState())
+            print("New state", newBoard.GetState())
 
         Board.HISTORY.append(newBoard)
 
@@ -266,14 +273,68 @@ class Board(BoardState):
 
     def CalculateAvailableActions(self) -> set[Action]:
         state = self.GetState()
-        print(state)
         if state in [GameState.WHITE_WINS, GameState.BLACK_WINS]:
             return set()
         if state in [GameState.WHITE_ROLLS, GameState.BLACK_ROLLS]:
             return {RollDiceAction()}
-        
-        return {} # TODO
 
-    def GetBestMoveForDices(self) -> tuple[Action, float]:
-        pass # TODO
+        # tmp
+        actions: set[Action] = {}
+        for i in self.translations:
+            actions |= self.getActionsForDice(i)
+        return actions
 
+    def GetBestMovesForDices(self) -> tuple[Action, float]:
+        pass  # TODO
+
+    def getActionsForDice(self, dice: int) -> set[Action]:
+        assert 0 < dice < 7, "Dice must be between 1 and 6"
+        isWhite = self.is_white_turn
+
+        # if there are cuptured pieces
+        if len(self.cuptured[Color.WHITE if isWhite else Color.BLACK]) != 0:
+            index_to = (dice - 1) if isWhite else (24 - dice)
+            if self.board[index_to] * (1 if isWhite else -1) >= -1:
+                return {PlaceAction(index_to)}
+            return {}
+
+        actions: set[Action] = {}
+
+        # check if there is the state for removing pieces
+        piece_count = 0
+        for i in range(24):
+            piece_count += (
+                abs(self.board[i]) if self.board[i] * (1 if isWhite else -1) > 0 else 0
+            )
+        piece_count += self.cuptured[Color.WHITE if isWhite else Color.BLACK]
+        sum_pieces_end_pos = sum(
+            [
+                abs(i)
+                for i in self.board[0 if isWhite else 18 : 6 if isWhite else 24]
+                if i > 0
+            ]
+        )
+
+        if piece_count == sum_pieces_end_pos:
+            # state for removing pieces
+            for i in range(6):
+                if (
+                    self.board[(18 + i) if isWhite else (5 - i)]
+                    * (1 if isWhite else -1)
+                    > 0
+                ):
+                    if dice >= 6 - i:
+                        actions.add(RemoveAction((18 + i) if isWhite else (5 - i)))
+                    break
+
+        # simple moves
+
+        for i in range(24 - dice):
+            index = i if isWhite else (dice + i)
+            next_to = index + dice * (1 if isWhite else -1)
+            if self.board[index] * (1 if isWhite else -1) <= 0:
+                continue
+            if self.board[next_to] * (1 if isWhite else -1) >= -1:
+                actions.add(MoveAction(index, next_to))
+
+        return actions

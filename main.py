@@ -22,6 +22,8 @@ while running:
         print("Game Over: ", state.get_board().state)
         running = False
 
+    print(state.get_board().state)
+
     pygame.display.flip()
 
 pygame.quit()

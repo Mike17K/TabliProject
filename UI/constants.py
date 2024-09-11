@@ -1,6 +1,6 @@
 import pygame
 
-scale = 1
+scale = 0.3
 
 screen_width = 1024 * scale
 screen_height = 1024 * scale
