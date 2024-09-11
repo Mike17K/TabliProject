@@ -14,31 +14,31 @@ from Compute.types import (
 class BoardState:
     def __init__(self) -> None:
         self.board: list[int] = [
-            # 2,0,0,0,0,-5,0,-3,0,0,0,5,-5,0,0,0,3,0,5,0,0,0,0,-2,
-            -2,
-            -2,
-            -2,
-            -3,
-            -3,
-            -3,
-            0,
-            0,
-            0,
-            0,
-            -1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
             2,
-            2,
+            0,
+            0,
+            0,
+            0,
+            -5,
+            0,
+            -3,
+            0,
+            0,
+            0,
+            5,
+            -5,
+            0,
+            0,
+            0,
             3,
-            3,
-            3,
+            0,
+            5,
+            0,
+            0,
+            0,
+            0,
+            -2,
+            # -2,-2,-2,-3,-3,-3,0,0,0,0,-1,0,0,0,1,0,0,0,0,2,2,3,3,3,
         ]
         self.cuptured: dict[Color, int] = {Color.WHITE: 0, Color.BLACK: 0}
         self.action_to_get_this_state: Action | None = None
@@ -209,7 +209,6 @@ class Board(BoardState):
 
     def GetAvailableActions(self) -> set[Action]:
         if not self.available_moves_calculated:
-            print("calculating available moves")
             self.available_moves = self.CalculateAvailableActions()
             self.available_moves_calculated = True
         return self.available_moves
@@ -257,12 +256,6 @@ class Board(BoardState):
         if (self.dices != [-1, -1] and self.translations == []) or len(
             self.GetAvailableActions()
         ) == 0:
-            print(
-                "other plays, data: ",
-                self.dices,
-                self.translations,
-                self.GetAvailableActions(),
-            )
             newBoard.is_white_turn = not self.is_white_turn
             newBoard.dices = [-1, -1]
             newBoard.translations = []
@@ -301,7 +294,6 @@ class Board(BoardState):
         return actions
 
     def getActionsForDice(self, dice: int) -> set[Action]:
-        print("getActionsForDice", dice)
         assert 0 < dice < 7, "Dice must be between 1 and 6"
         isWhite = self.is_white_turn
 
@@ -330,7 +322,6 @@ class Board(BoardState):
         )
         if piece_count == sum_pieces_end_pos:
             # state for removing pieces
-            print("state for removing pieces")
             for k in range(0, 6):
                 i = 6 - k - 1
                 if (
@@ -351,6 +342,127 @@ class Board(BoardState):
                 actions.add(MoveAction(index, next_to))
 
         return actions
+
+    ######################## Evaluation ######################
+    def GetCost(self):
+        # evaluate the board
+        score = 0
+        white_pieces = 0
+        black_pieces = 0
+
+        squares_controlled = [0, 0]  # white , black\
+        last_controlled_sq = [-1, -1]
+
+        last_white_piece_index = -1
+        last_black_piece_index = -1
+        for i in range(24):
+            if self.board[i] > 0 and last_white_piece_index == -1:
+                last_white_piece_index = i
+            if self.board[23 - i] < 0 and last_black_piece_index == -1:
+                last_black_piece_index = 23 - i
+
+            # when there are more than 2 pieces then the square is controlled
+
+            if self.board[23 - i] >= 2:
+                last_controlled_sq[0] = i
+            if self.board[23 - i] <= -2:
+                last_controlled_sq[1] = 23 - i
+
+        for i in range(24):
+            if self.board[i] == 0:
+                continue
+
+            isWhite = self.board[i] > 0
+            pieces = abs(self.board[i])
+            quarter = (
+                (23 - i) // 6 if isWhite else i // 6
+            )  # 0,1,2,3 the lower the closest to end
+
+            # the importance of a square baced of the distance from the end
+            important_factor = 1
+            if quarter == 0:
+                important_factor = 0.8
+            elif quarter == 1:
+                important_factor = 2
+            elif quarter == 2:
+                important_factor = 1.5
+            elif quarter == 3:
+                important_factor = 0.2
+
+            if last_white_piece_index > 6 * 3 - 1:
+                score += 200
+            if last_black_piece_index < 5:
+                score -= 200
+
+            # modify important factor baced of the first enemy piece position
+            if isWhite:
+                if i < last_black_piece_index:
+                    important_factor *= 1.5
+                else:
+                    # if there are cuptured pieces importance big
+                    if self.cuptured[Color.BLACK] > 0:
+                        important_factor *= 5
+                    else:
+                        important_factor /= 5
+            else:
+                if i > last_white_piece_index:
+                    important_factor *= 1.5
+                else:
+                    if self.cuptured[Color.WHITE]:
+                        important_factor *= 5
+                    else:
+                        important_factor /= 5
+                    important_factor /= 5
+
+            # solo pieces bad in general and too bad when there are away from the other pieces
+            if pieces == 1:
+                score += (
+                    30
+                    * (-1 if isWhite else 1)
+                    * important_factor
+                    * (
+                        5
+                        if quarter == 0
+                        and (self.cuptured[Color.BLACK if isWhite else Color.WHITE] > 0)
+                        else 1
+                    )
+                )
+                if isWhite:
+                    if i - last_controlled_sq[0] > 12:
+                        score += -10
+                else:
+                    if last_controlled_sq[1] - i > 12:
+                        score += +10
+
+            # squares controlled
+            if pieces >= 2:
+                squares_controlled[0 if isWhite else 1] += 3 * important_factor
+
+            # keep track the number of pieces
+            if isWhite:
+                white_pieces += self.board[i] * important_factor
+            else:
+                black_pieces += -self.board[i] * important_factor
+
+            # the more pieces you have in the start have a small penalty
+            if quarter == 3:
+                score += 2.5 * (1 if isWhite else -1) * pieces
+
+        # update score based of the number of pieces
+        score += -white_pieces
+        score -= -black_pieces
+
+        # udpate score based of captured pieces
+        score += -sum(self.cuptured[Color.WHITE] - self.cuptured[Color.BLACK]) * 20
+
+        # update based of the controlled squares
+        score += 10 * (squares_controlled[0] - squares_controlled[1])
+
+        # the closer to the end the better
+        # the more linear distribution on end the better
+        # the single pieces where opponent has at least 1 piece before is bad
+        # MORE
+        return score
 
     def GetBestMovesForDices(self) -> tuple[Action, float]:
         pass  # TODO
