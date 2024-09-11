@@ -89,12 +89,15 @@ def handleEvents(event: pygame.event.Event, state: UIState):
             board.Undo()
 
         if event.key == pygame.K_c:
-            best_moves, score = board.GetBestMovesForDices()
-            print("Best move for dices: ", best_moves, " with score: ", score)
-            # make the moves
-            for move in best_moves:
-                board.ExecuteAction(move)
-                board.Commit()
+            try:
+                best_moves, score = board.GetBestMovesForDices()
+                print("Best move for dices: ", best_moves, " with score: ", score)
+                # make the moves
+                for move in best_moves:
+                    board.ExecuteAction(move)
+                    board.Commit()
+            except Exception as e:
+                pass
 
         # moves only for latest part of the game
         if event.key in [
