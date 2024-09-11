@@ -14,30 +14,31 @@ from Compute.types import (
 class BoardState:
     def __init__(self) -> None:
         self.board: list[int] = [
-            2,
-            0,
-            0,
-            0,
-            0,
-            -5,
-            0,
+            # 2,0,0,0,0,-5,0,-3,0,0,0,5,-5,0,0,0,3,0,5,0,0,0,0,-2,
+            -2,
+            -2,
+            -2,
+            -3,
+            -3,
             -3,
             0,
             0,
             0,
-            5,
-            -5,
+            0,
+            -1,
             0,
             0,
             0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            2,
+            2,
             3,
-            0,
-            5,
-            0,
-            0,
-            0,
-            0,
-            -2,
+            3,
+            3,
         ]
         self.cuptured: dict[Color, int] = {Color.WHITE: 0, Color.BLACK: 0}
         self.action_to_get_this_state: Action | None = None
@@ -45,14 +46,17 @@ class BoardState:
         self.dices = [-1, -1]
         self.translations = []
 
+    def __str__(self) -> str:
+        return f"Board({self.board}, {self.cuptured}, {self.is_white_turn}, {self.action_to_get_this_state})"
+
     def ExecuteAction(self, action: Action) -> None:
         """
         Execute the action on the board
         """
+        print(self, action, self.action_to_get_this_state, len(Board.HISTORY))
         assert (
             self.action_to_get_this_state == None
         ), "You have already executed an action"
-
         if action.type == ActionType.ROLL_DICE:
             assert self.dices == [-1, -1], "You have already rolled the dices"
             self.rollDiseAction(action)
@@ -200,8 +204,12 @@ class Board(BoardState):
         self.available_moves_calculated = False
         self.available_moves: set[Action] = set()
 
+        if len(Board.HISTORY) == 0:
+            Board.HISTORY.append(self)
+
     def GetAvailableActions(self) -> set[Action]:
         if not self.available_moves_calculated:
+            print("calculating available moves")
             self.available_moves = self.CalculateAvailableActions()
             self.available_moves_calculated = True
         return self.available_moves
@@ -249,19 +257,27 @@ class Board(BoardState):
         if (self.dices != [-1, -1] and self.translations == []) or len(
             self.GetAvailableActions()
         ) == 0:
+            print(
+                "other plays, data: ",
+                self.dices,
+                self.translations,
+                self.GetAvailableActions(),
+            )
             newBoard.is_white_turn = not self.is_white_turn
             newBoard.dices = [-1, -1]
             newBoard.translations = []
             newBoard.available_moves_calculated = False
             newBoard.available_moves = set()
-            print("New state", newBoard.GetState())
+        print("New state", newBoard.GetState())
 
         Board.HISTORY.append(newBoard)
 
     @staticmethod
     def Undo():
-        if len(Board.HISTORY) > 1:
+        if len(Board.HISTORY) > 2:
             Board.HISTORY.pop()
+            Board.HISTORY.pop()
+            Board.Now().Commit()
             return True
         return False
 
@@ -279,26 +295,24 @@ class Board(BoardState):
             return {RollDiceAction()}
 
         # tmp
-        actions: set[Action] = {}
+        actions: set[Action] = set()
         for i in self.translations:
             actions |= self.getActionsForDice(i)
         return actions
 
-    def GetBestMovesForDices(self) -> tuple[Action, float]:
-        pass  # TODO
-
     def getActionsForDice(self, dice: int) -> set[Action]:
+        print("getActionsForDice", dice)
         assert 0 < dice < 7, "Dice must be between 1 and 6"
         isWhite = self.is_white_turn
 
+        actions: set[Action] = set()
+
         # if there are cuptured pieces
-        if len(self.cuptured[Color.WHITE if isWhite else Color.BLACK]) != 0:
+        if self.cuptured[Color.WHITE if isWhite else Color.BLACK] != 0:
             index_to = (dice - 1) if isWhite else (24 - dice)
             if self.board[index_to] * (1 if isWhite else -1) >= -1:
-                return {PlaceAction(index_to)}
-            return {}
-
-        actions: set[Action] = {}
+                actions.add(PlaceAction(index_to))
+            return actions
 
         # check if there is the state for removing pieces
         piece_count = 0
@@ -310,25 +324,24 @@ class Board(BoardState):
         sum_pieces_end_pos = sum(
             [
                 abs(i)
-                for i in self.board[0 if isWhite else 18 : 6 if isWhite else 24]
-                if i > 0
+                for i in self.board[18 if isWhite else 0 : 24 if isWhite else 6]
+                if i * (1 if isWhite else -1) > 0
             ]
         )
-
         if piece_count == sum_pieces_end_pos:
             # state for removing pieces
-            for i in range(6):
+            print("state for removing pieces")
+            for k in range(0, 6):
+                i = 6 - k - 1
                 if (
-                    self.board[(18 + i) if isWhite else (5 - i)]
-                    * (1 if isWhite else -1)
+                    self.board[(23 - i) if isWhite else (i)] * (1 if isWhite else -1)
                     > 0
                 ):
-                    if dice >= 6 - i:
-                        actions.add(RemoveAction((18 + i) if isWhite else (5 - i)))
+                    if dice - 1 >= i:
+                        actions.add(RemoveAction((23 - i) if isWhite else (i)))
                     break
 
         # simple moves
-
         for i in range(24 - dice):
             index = i if isWhite else (dice + i)
             next_to = index + dice * (1 if isWhite else -1)
@@ -338,3 +351,6 @@ class Board(BoardState):
                 actions.add(MoveAction(index, next_to))
 
         return actions
+
+    def GetBestMovesForDices(self) -> tuple[Action, float]:
+        pass  # TODO

@@ -4,10 +4,12 @@ import sys
 from UI.events import handleEvents
 from UI.visuals import DrawState
 from Compute.types import GameState
+from Compute.board import Board
 
 pygame.init()
 
 state = UIState().get_instance()
+state.get_board().GetState()
 
 running = True
 while running:
@@ -22,7 +24,11 @@ while running:
         print("Game Over: ", state.get_board().state)
         running = False
 
-    print(state.get_board().state)
+    # print(
+    #     state.get_board().state,
+    #     state.get_board().action_to_get_this_state,
+    #     len(Board.HISTORY),
+    # )
 
     pygame.display.flip()
 
