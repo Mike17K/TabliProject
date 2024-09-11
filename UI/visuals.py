@@ -12,7 +12,7 @@ from UI.constants import (
 )
 from UI.state import UIState
 from Compute.board import Board
-from Compute.types import Color
+from Compute.types import Color, ActionType, MoveAction
 
 screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Simple Pygame Window")
@@ -142,9 +142,10 @@ def DrawBoard(board: Board, holding_index=None):
                         (x, y + black_piece_index * PIECE_WIDTH),
                     )
 
-    available_moves = list(board.available_moves)
-    for i in range(len(available_moves)):
-        from_index, to_index = available_moves[i]
+    for action in board.available_moves:
+        if action.type != ActionType.MOVE: continue
+        action: MoveAction = action
+        from_index, to_index = action.from_index, action.to_index
         if from_index == 24:  # white captured pieces
             pygame.draw.rect(
                 screen,

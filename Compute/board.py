@@ -53,7 +53,6 @@ class BoardState:
         """
         Execute the action on the board
         """
-        print(self, action, self.action_to_get_this_state, len(Board.HISTORY))
         assert (
             self.action_to_get_this_state == None
         ), "You have already executed an action"
@@ -235,9 +234,11 @@ class Board(BoardState):
         if len(Board.HISTORY) > 0 and Board.HISTORY[-1] != self:
             return self.state
         # if moved pieces are equal to the final results then call it done
-        if len(self.translations) == 0 or (
-            self.available_moves_calculated and len(self.available_moves) == 0
-        ):
+        actions: set[Action] = set()
+        for i in self.translations:
+            actions |= self.getActionsForDice(i)
+
+        if len(self.translations) == 0 or (len(actions) == 0 and self.dices != [-1, -1]):
             self.state = (
                 GameState.BLACK_ROLLS if self.is_white_turn else GameState.WHITE_ROLLS
             )
@@ -261,9 +262,12 @@ class Board(BoardState):
             newBoard.translations = []
             newBoard.available_moves_calculated = False
             newBoard.available_moves = set()
+        
+        # Note: this bellow is important order
+        Board.HISTORY.append(newBoard)
         print("New state", newBoard.GetState())
 
-        Board.HISTORY.append(newBoard)
+        return newBoard
 
     @staticmethod
     def Undo():
@@ -474,63 +478,44 @@ class Board(BoardState):
         best_moves: list[Action] = []
         best_score = -float("inf")
 
-        for a1 in self.GetAvailableActions():
-            if a1.type == ActionType.ROLL_DICE:
-                break
-
-            tmpBoard1 = Board.From(self)
-            tmpBoard1.ExecuteAction(a1)
-
-            for a2 in tmpBoard1.GetAvailableActions():
-                if a2.type == ActionType.ROLL_DICE:
-                    break
-
-                tmpBoard2 = Board.From(tmpBoard1)
-                tmpBoard2.ExecuteAction(a2)
-
-                if tmpBoard2.translations != []:
-                    for a3 in tmpBoard2.GetAvailableActions():
-                        if a3.type == ActionType.ROLL_DICE:
-                            break
-
-                        tmpBoard3 = Board.From(tmpBoard2)
-                        tmpBoard3.ExecuteAction(a3)
-
-                        for a4 in tmpBoard3.GetAvailableActions():
-                            if a4.type == ActionType.ROLL_DICE:
-                                break
-
-                            tmpBoard4 = Board.From(tmpBoard3)
-                            tmpBoard4.ExecuteAction(a4)
-
-                            score = tmpBoard4.Evalutate()
-                            if score > best_score:
-                                best_score = score
-                                best_moves = [a1, a2, a3, a4]
-                        else:
-                            score = tmpBoard3.Evalutate()
-                            if score > best_score:
-                                best_score = score
-                                best_moves = [a1, a2, a3]
-                    else:
-                        score = tmpBoard2.Evalutate()
-                        if score > best_score:
-                            best_score = score
-                            best_moves = [a1, a2]
-                else:
-                    score = tmpBoard1.Evalutate()
-                    if score > best_score:
-                        best_score = score
-                        best_moves = [a1]
-            else:
-                score = self.Evalutate()
-                if score > best_score:
-                    best_score = score
-                    best_moves = [a1]
-        else:
-            score = self.Evalutate()
+        def UpdateBest(board: "Board", moves: list[Action]):
+            nonlocal best_score, best_moves
+            score = board.Evalutate()
             if score > best_score:
                 best_score = score
-                best_moves = []
+                best_moves = moves
+
+        actions1 = self.GetAvailableActions()
+        if {RollDiceAction()} not in actions1 and len(self.translations) > 0:
+            for a1 in actions1:
+                tmpBoard1 = Board.From(self)
+                tmpBoard1.ExecuteAction(a1)
+                actions2 = tmpBoard1.GetAvailableActions()
+                if {RollDiceAction()} not in actions2 and len(tmpBoard1.translations) > 0:
+                    for a2 in actions2:
+                        tmpBoard2 = Board.From(tmpBoard1)
+                        tmpBoard2.ExecuteAction(a2)
+                        actions3 = tmpBoard2.GetAvailableActions()
+
+                        if {RollDiceAction()} not in actions3 and len(tmpBoard2.translations) > 0:
+                            for a3 in actions3:
+                                tmpBoard3 = Board.From(tmpBoard2)
+                                tmpBoard3.ExecuteAction(a3)
+                                actions4 = tmpBoard3.GetAvailableActions()
+
+                                if {RollDiceAction()} not in actions4 and len(tmpBoard3.translations) > 0:
+                                    for a4 in actions4:
+                                        tmpBoard4 = Board.From(tmpBoard3)
+                                        tmpBoard4.ExecuteAction(a4)
+
+                                        UpdateBest(tmpBoard4, [a1, a2, a3, a4])
+                                else:
+                                    UpdateBest(tmpBoard3, [a1, a2, a3])
+                        else:
+                            UpdateBest(tmpBoard2, [a1, a2])
+                else:
+                    UpdateBest(tmpBoard1, [a1])
+        else:
+            UpdateBest(self, [])
 
         return best_moves, best_score
