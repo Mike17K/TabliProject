@@ -118,10 +118,18 @@ class BoardState:
         assert (
             self.cuptured[Color.WHITE if self.board[from_index] > 0 else Color.BLACK]
             == 0
-        )  # ensure that the player has no captured pieces
+        ), "There are cuptured pieces, you can't remove a piece"
         assert sum([p for p in self.board if p * self.board[from_index] > 0]) == sum(
-            self.board[:6] if self.board[from_index] < 0 else self.board[18:]
-        )  # ensure that the player has no other pieces on the board
+            [
+                p
+                for p in self.board[
+                    18 if self.board[from_index] > 0 else 0 : (
+                        24 if self.board[from_index] > 0 else 6
+                    )
+                ]
+                if p * self.board[from_index] > 0
+            ]
+        ), "There are not all pieces on the end"
 
         maxPieceIndex = 0
         for j in range(6):
@@ -213,6 +221,8 @@ class Board(BoardState):
         return self.available_moves
 
     def GetState(self) -> GameState:
+        if self.state != GameState.NOT_STARTED:
+            return self.state
         piece_count = [0, 0]  # white, black
         for i in range(24):
             if self.board[i] > 0:
@@ -238,7 +248,9 @@ class Board(BoardState):
         for i in self.translations:
             actions |= self.getActionsForDice(i)
 
-        if len(self.translations) == 0 or (len(actions) == 0 and self.dices != [-1, -1]):
+        if len(self.translations) == 0 or (
+            len(actions) == 0 and self.dices != [-1, -1]
+        ):
             self.state = (
                 GameState.BLACK_ROLLS if self.is_white_turn else GameState.WHITE_ROLLS
             )
@@ -253,18 +265,21 @@ class Board(BoardState):
         assert self.action_to_get_this_state != None
 
         newBoard = Board.From(self)
+        # Note: this bellow is important order the append has to happen before the GetState call
+        Board.HISTORY.append(newBoard)
 
-        if (self.dices != [-1, -1] and self.translations == []) or len(
-            self.GetAvailableActions()
-        ) == 0:
+        if (
+            (self.dices != [-1, -1] and self.translations == [])
+            or len(self.GetAvailableActions()) == 0
+            or newBoard.GetState()
+            == (GameState.BLACK_ROLLS if self.is_white_turn else GameState.WHITE_ROLLS)
+        ):
             newBoard.is_white_turn = not self.is_white_turn
             newBoard.dices = [-1, -1]
             newBoard.translations = []
             newBoard.available_moves_calculated = False
             newBoard.available_moves = set()
-        
-        # Note: this bellow is important order
-        Board.HISTORY.append(newBoard)
+
         print("New state", newBoard.GetState())
 
         return newBoard
@@ -486,24 +501,24 @@ class Board(BoardState):
                 best_moves = moves
 
         actions1 = self.GetAvailableActions()
-        if {RollDiceAction()} not in actions1 and len(self.translations) > 0:
+        if len(actions1) > 0:
             for a1 in actions1:
                 tmpBoard1 = Board.From(self)
                 tmpBoard1.ExecuteAction(a1)
                 actions2 = tmpBoard1.GetAvailableActions()
-                if {RollDiceAction()} not in actions2 and len(tmpBoard1.translations) > 0:
+                if len(actions2) > 0:
                     for a2 in actions2:
                         tmpBoard2 = Board.From(tmpBoard1)
                         tmpBoard2.ExecuteAction(a2)
                         actions3 = tmpBoard2.GetAvailableActions()
 
-                        if {RollDiceAction()} not in actions3 and len(tmpBoard2.translations) > 0:
+                        if len(actions3) > 0:
                             for a3 in actions3:
                                 tmpBoard3 = Board.From(tmpBoard2)
                                 tmpBoard3.ExecuteAction(a3)
                                 actions4 = tmpBoard3.GetAvailableActions()
 
-                                if {RollDiceAction()} not in actions4 and len(tmpBoard3.translations) > 0:
+                                if len(actions4) > 0:
                                     for a4 in actions4:
                                         tmpBoard4 = Board.From(tmpBoard3)
                                         tmpBoard4.ExecuteAction(a4)

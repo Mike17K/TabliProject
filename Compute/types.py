@@ -21,6 +21,7 @@ class ActionType(Enum):
     REMOVE = 1
     PLACE = 2
     ROLL_DICE = 3
+    NONE_ACTION = 4
 
 
 class Action:

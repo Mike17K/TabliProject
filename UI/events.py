@@ -110,8 +110,8 @@ def handleEvents(event: pygame.event.Event, state: UIState):
             pygame.K_5,
             pygame.K_6,
         ]:
-            number = int(event.key) - pygame.K_1 + 1
             try:
+                number = int(event.key) - pygame.K_1 + 1
                 board.ExecuteAction(
                     RemoveAction((24 - number) if board.is_white_turn else (number - 1))
                 )
