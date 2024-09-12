@@ -366,118 +366,22 @@ class Board(BoardState):
     def GetCost(self):
         # evaluate the board
         score = 0
-        white_pieces = 0
-        black_pieces = 0
 
-        squares_controlled = [0, 0]  # white , black\
-        last_controlled_sq = [-1, -1]
+        score -= 10 * (self.cuptured[Color.WHITE] - self.cuptured[Color.BLACK])
 
-        last_white_piece_index = -1
-        last_black_piece_index = -1
-        for i in range(24):
-            if self.board[i] > 0 and last_white_piece_index == -1:
-                last_white_piece_index = i
-            if self.board[23 - i] < 0 and last_black_piece_index == -1:
-                last_black_piece_index = 23 - i
+        for i, p in enumerate(self.board):
+            # the more pieces the worse
+            score += -20 * p
+            # the more pieces the worse # but not too bad as reaching the end
+            score -= 10 * ((p * (23 - i) / 24) if p > 0 else (p * i / 24))
 
-            # when there are more than 2 pieces then the square is controlled
+            # the more controlled squares the better
+            score += (
+                (0 if p == 0 else ((-4 * i / 24) if p == 1 else (4 * (23 - i) / 24)))
+                if abs(p) < 2
+                else (1 if p > 0 else -1)
+            )
 
-            if self.board[23 - i] >= 2:
-                last_controlled_sq[0] = i
-            if self.board[23 - i] <= -2:
-                last_controlled_sq[1] = 23 - i
-
-        for i in range(24):
-            if self.board[i] == 0:
-                continue
-
-            isWhite = self.board[i] > 0
-            pieces = abs(self.board[i])
-            quarter = (
-                (23 - i) // 6 if isWhite else i // 6
-            )  # 0,1,2,3 the lower the closest to end
-
-            # the importance of a square baced of the distance from the end
-            important_factor = 1
-            if quarter == 0:
-                important_factor = 0.8
-            elif quarter == 1:
-                important_factor = 2
-            elif quarter == 2:
-                important_factor = 1.5
-            elif quarter == 3:
-                important_factor = 0.2
-
-            if last_white_piece_index > 6 * 3 - 1:
-                score += 200
-            if last_black_piece_index < 5:
-                score -= 200
-
-            # modify important factor baced of the first enemy piece position
-            if isWhite:
-                if i < last_black_piece_index:
-                    important_factor *= 1.5
-                else:
-                    # if there are cuptured pieces importance big
-                    if self.cuptured[Color.BLACK] > 0:
-                        important_factor *= 5
-                    else:
-                        important_factor /= 5
-            else:
-                if i > last_white_piece_index:
-                    important_factor *= 1.5
-                else:
-                    if self.cuptured[Color.WHITE]:
-                        important_factor *= 5
-                    else:
-                        important_factor /= 5
-                    important_factor /= 5
-
-            # solo pieces bad in general and too bad when there are away from the other pieces
-            if pieces == 1:
-                score += (
-                    30
-                    * (-1 if isWhite else 1)
-                    * important_factor
-                    * (
-                        5
-                        if quarter == 0
-                        and (self.cuptured[Color.BLACK if isWhite else Color.WHITE] > 0)
-                        else 1
-                    )
-                )
-                if isWhite:
-                    if i - last_controlled_sq[0] > 12:
-                        score += -10
-                else:
-                    if last_controlled_sq[1] - i > 12:
-                        score += +10
-
-            # squares controlled
-            if pieces >= 2:
-                squares_controlled[0 if isWhite else 1] += 3 * important_factor
-
-            # keep track the number of pieces
-            if isWhite:
-                white_pieces += self.board[i] * important_factor
-            else:
-                black_pieces += -self.board[i] * important_factor
-
-            # the more pieces you have in the start have a small penalty
-            if quarter == 3:
-                score += 2.5 * (1 if isWhite else -1) * pieces
-
-        # update score based of the number of pieces
-        score += -white_pieces
-        score -= -black_pieces
-
-        # udpate score based of captured pieces
-        score += -(self.cuptured[Color.WHITE] - self.cuptured[Color.BLACK]) * 20
-
-        # update based of the controlled squares
-        score += 10 * (squares_controlled[0] - squares_controlled[1])
-
-        # the closer to the end the better
         # the more linear distribution on end the better
         # the single pieces where opponent has at least 1 piece before is bad
         # MORE
@@ -491,12 +395,14 @@ class Board(BoardState):
         assert self.dices != [-1, -1], "You must roll the dices before making a move"
         # for each move combination that can be done, calculate the Evaluate and return the best one
         best_moves: list[Action] = []
-        best_score = -float("inf")
+        best_score = -float("inf") if self.is_white_turn else float("inf")
 
         def UpdateBest(board: "Board", moves: list[Action]):
             nonlocal best_score, best_moves
             score = board.Evalutate()
-            if score > best_score:
+            if score * (1 if self.is_white_turn else -1) > best_score * (
+                1 if self.is_white_turn else -1
+            ):
                 best_score = score
                 best_moves = moves
 

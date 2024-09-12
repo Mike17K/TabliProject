@@ -91,15 +91,16 @@ def handleEvents(event: pygame.event.Event, state: UIState):
         if event.key == pygame.K_c:
             best_moves = []
             score = 0
-            try:
+            if board.dices != [-1, -1]:
                 best_moves, score = board.GetBestMovesForDices()
-            except Exception as e:
-                pass
-            print("Best moves: ", best_moves, score)
-            # make the moves
-            for move in best_moves:
-                board.ExecuteAction(move)
-                board = board.Commit()
+
+                print("Best moves: ", best_moves, score)
+                # make the moves
+                for move in best_moves:
+                    board.ExecuteAction(move)
+                    board = board.Commit()
+            else:
+                print("No dices rolled yet")
 
         # moves only for latest part of the game
         if event.key in [
@@ -118,3 +119,7 @@ def handleEvents(event: pygame.event.Event, state: UIState):
                 board.Commit()
             except Exception as e:
                 pass
+
+        if event.key == pygame.K_e:
+            print("Evaluating the board")
+            print(board.Evalutate())
