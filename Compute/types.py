@@ -99,8 +99,9 @@ class PlaceAction(Action):
 
 
 class RollDiceAction(Action):
-    def __init__(self):
+    def __init__(self, dices: list[int]|None = None):
         self.type: ActionType = ActionType.ROLL_DICE
+        self.dices: list[int]|None = dices
 
     def Validate(self) -> bool:
         return True

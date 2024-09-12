@@ -184,6 +184,8 @@ class BoardState:
         dice1 = random.randint(1, 6)
         dice2 = random.randint(1, 6)
         self.dices = [dice1, dice2]
+        if action.dices != None:
+            self.dices = action.dices
         if dice1 == dice2:
             self.translations = [dice1] * 4
         else:
@@ -387,11 +389,25 @@ class Board(BoardState):
         # MORE
         return score
 
-    def Evalutate(self) -> float:
+    def Evalutate(self, depth = 0) -> float:
         # TODO later implement with a depth
-        return self.GetCost()
-
-    def GetBestMovesForDices(self) -> tuple[list[Action], float]:
+        if depth == 0:
+            return self.GetCost()
+        
+        print("Depth", depth)
+        return self.GetCost() # FIX TODO
+        
+        # for each dice combination, calculate the best states and average the cost
+        # total_cost = 0
+        # for dices in [(i, j) for i in range(1, 7) for j in range(1, 7)]:
+        #     tmpBoard = Board.From(self)
+        #     tmpBoard.dices = [-1, -1]
+        #     tmpBoard.rollDiseAction(RollDiceAction(dices))
+        #     best_moves, best_score = self.GetBestMovesForDices(depth - 1)
+        #     total_cost += best_score
+        # return total_cost / 36
+        
+    def GetBestMovesForDices(self, depth = 0) -> tuple[list[Action], float]:
         assert self.dices != [-1, -1], "You must roll the dices before making a move"
         # for each move combination that can be done, calculate the Evaluate and return the best one
         best_moves: list[Action] = []
@@ -399,7 +415,7 @@ class Board(BoardState):
 
         def UpdateBest(board: "Board", moves: list[Action]):
             nonlocal best_score, best_moves
-            score = board.Evalutate()
+            score = board.Evalutate(depth)
             if score * (1 if self.is_white_turn else -1) > best_score * (
                 1 if self.is_white_turn else -1
             ):

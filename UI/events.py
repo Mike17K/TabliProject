@@ -92,7 +92,7 @@ def handleEvents(event: pygame.event.Event, state: UIState):
             best_moves = []
             score = 0
             if board.dices != [-1, -1]:
-                best_moves, score = board.GetBestMovesForDices()
+                best_moves, score = board.GetBestMovesForDices(depth=1)
 
                 print("Best moves: ", best_moves, score)
                 # make the moves
