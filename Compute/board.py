@@ -198,6 +198,7 @@ class Board(BoardState):
 
     @staticmethod
     def From(old: "Board") -> "Board":
+        assert isinstance(old, Board), "Old must be an instance of Board"
         newBoard = Board()
         newBoard.board = old.board.copy()
         newBoard.cuptured = old.cuptured.copy()
@@ -263,12 +264,13 @@ class Board(BoardState):
         )
         return self.state
 
-    def Commit(self) -> "Board":
+    def Commit(self, add_to_history=True) -> "Board":
         assert self.action_to_get_this_state != None
 
         newBoard = Board.From(self)
         # Note: this bellow is important order the append has to happen before the GetState call
-        Board.HISTORY.append(newBoard)
+        if add_to_history:
+            Board.HISTORY.append(newBoard)
 
         if (
             (self.dices != [-1, -1] and self.translations == [])
@@ -282,7 +284,8 @@ class Board(BoardState):
             newBoard.available_moves_calculated = False
             newBoard.available_moves = set()
 
-        print("New state", newBoard.GetState())
+        if add_to_history:
+            print("New state", newBoard.GetState())
 
         return newBoard
 
@@ -369,19 +372,19 @@ class Board(BoardState):
         # evaluate the board
         score = 0
 
-        score -= 10 * (self.cuptured[Color.WHITE] - self.cuptured[Color.BLACK])
+        score -= 15 * (self.cuptured[Color.WHITE] - self.cuptured[Color.BLACK])
 
         for i, p in enumerate(self.board):
             # the more pieces the worse
-            score += -20 * p
+            score += -10 * p
             # the more pieces the worse # but not too bad as reaching the end
-            score -= 10 * ((p * (23 - i) / 24) if p > 0 else (p * i / 24))
+            score -= ((p * (23 - i) / 24) if p > 0 else (p * i / 24))
 
             # the more controlled squares the better
             score += (
-                (0 if p == 0 else ((-4 * i / 24) if p == 1 else (4 * (23 - i) / 24)))
+                (0 if p == 0 else ((-4 * (23-i) / 24) if p == 1 else (4 * (i) / 24)))
                 if abs(p) < 2
-                else (1 if p > 0 else -1)
+                else (5 if p > 0 else -5)
             )
 
         # the more linear distribution on end the better
@@ -390,12 +393,27 @@ class Board(BoardState):
         return score
 
     def Evalutate(self, depth = 0) -> float:
+        score = 0
         # TODO later implement with a depth
         if depth == 0:
-            return self.GetCost()
+            score = self.GetCost()
+            return score
         
-        print("Depth", depth)
-        return self.GetCost() # FIX TODO
+        for dices in [(i, j) for i in range(1, 7) for j in range(1, 7)]:
+            tmpBoard = Board.From(self)
+            tmpBoard.dices = [-1, -1]
+            tmpBoard.rollDiseAction(RollDiceAction([dices[0], dices[1]]))
+
+            # for i in all action combinations of available actions - GetMovesForDices
+            for moves, _ in tmpBoard.GetMovesForDices():
+                tmpBoard2 = Board.From(tmpBoard)
+                for move in moves:
+                    tmpBoard2.ExecuteAction(move)
+                    tmpBoard2 = tmpBoard2.Commit(add_to_history=False)
+                
+                # for each action combination, calculate the best states and average the cost
+                score += tmpBoard2.Evalutate(depth - 1)
+        return score / 36
         
         # for each dice combination, calculate the best states and average the cost
         # total_cost = 0
@@ -456,3 +474,48 @@ class Board(BoardState):
             UpdateBest(self, [])
 
         return best_moves, best_score
+
+    def GetMovesForDices(self) -> list[tuple[list[Action], float]]:
+        assert self.dices != [-1, -1], "You must roll the dices before making a move"
+        # for each move combination that can be done, calculate the Evaluate and return the best one
+        result: list[tuple[list[Action], float]] = []
+
+        def AddMoves(board: "Board", moves: list[Action]):
+            nonlocal result
+            score = board.GetCost()
+            result.append((moves, score))
+
+        actions1 = self.GetAvailableActions()
+        if len(actions1) > 0:
+            for a1 in actions1:
+                tmpBoard1 = Board.From(self)
+                tmpBoard1.ExecuteAction(a1)
+                actions2 = tmpBoard1.GetAvailableActions()
+                if len(actions2) > 0:
+                    for a2 in actions2:
+                        tmpBoard2 = Board.From(tmpBoard1)
+                        tmpBoard2.ExecuteAction(a2)
+                        actions3 = tmpBoard2.GetAvailableActions()
+
+                        if len(actions3) > 0:
+                            for a3 in actions3:
+                                tmpBoard3 = Board.From(tmpBoard2)
+                                tmpBoard3.ExecuteAction(a3)
+                                actions4 = tmpBoard3.GetAvailableActions()
+
+                                if len(actions4) > 0:
+                                    for a4 in actions4:
+                                        tmpBoard4 = Board.From(tmpBoard3)
+                                        tmpBoard4.ExecuteAction(a4)
+
+                                        AddMoves(tmpBoard4, [a1, a2, a3, a4])
+                                else:
+                                    AddMoves(tmpBoard3, [a1, a2, a3])
+                        else:
+                            AddMoves(tmpBoard2, [a1, a2])
+                else:
+                    AddMoves(tmpBoard1, [a1])
+        else:
+            AddMoves(self, [])
+
+        return result
