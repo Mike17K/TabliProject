@@ -1,11 +1,13 @@
-from UI.state import UIState
 import pygame
+
+pygame.init()
+
+from UI.state import UIState
 import sys
 from UI.events import handleEvents
 from UI.visuals import DrawState
 from Compute.types import GameState
 
-pygame.init()
 
 state = UIState().get_instance()
 state.get_board().GetState()
