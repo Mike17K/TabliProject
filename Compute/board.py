@@ -368,28 +368,53 @@ class Board(BoardState):
         return actions
 
     ######################## Evaluation ######################
-    def GetCost(self):
-        # evaluate the board
+    def GetCost(self) -> float:
         score = 0
 
-        score -= 15 * (self.cuptured[Color.WHITE] - self.cuptured[Color.BLACK])
+        totalPieces = {Color.WHITE: self.cuptured[Color.WHITE], Color.BLACK: self.cuptured[Color.BLACK]}
+
+        lastPieces: dict[Color, int] = {Color.WHITE: -1, Color.BLACK: -1}
+        for i in range(len(self.board)):
+            if self.board[i] > 0 and lastPieces[Color.WHITE]==-1: lastPieces[Color.WHITE] = i
+            if self.board[23 - i] < 0 and lastPieces[Color.BLACK]==-1: lastPieces[Color.BLACK] = 23 - i
+
+            # count pieces
+            if self.board[i] > 0:
+                totalPieces[Color.WHITE] += self.board[i]
+            elif self.board[i] < 0:
+                totalPieces[Color.BLACK] += -self.board[i]
+
+        score -= 1000 * totalPieces[Color.WHITE] # somewhere here there is an error the system does not removes pieces!!! in the endgame i dont know why the cost calculation is workinggggg
+        score += 1000 * totalPieces[Color.BLACK]
+
+        # the more captured pieces the worse
+        score -= 27 * (self.cuptured[Color.WHITE] - self.cuptured[Color.BLACK])
 
         for i, p in enumerate(self.board):
+            if p==0: continue
             # the more pieces the worse
             score += -10 * p
             # the more pieces the worse # but not too bad as reaching the end
             score -= ((p * (23 - i) / 24) if p > 0 else (p * i / 24))
 
             # the more controlled squares the better
-            score += (
-                (0 if p == 0 else ((-4 * (23-i) / 24) if p == 1 else (4 * (i) / 24)))
-                if abs(p) < 2
-                else (5 if p > 0 else -5)
-            )
-
-        # the more linear distribution on end the better
-        # the single pieces where opponent has at least 1 piece before is bad
-        # MORE
+            if abs(p) == 1:
+                if p == 1:
+                    isAfterLastEnemyPiece = lastPieces[Color.BLACK] < i
+                    # white alone piece
+                    if not isAfterLastEnemyPiece or self.cuptured[Color.BLACK]!=0:
+                        score -= 8 * (4*(i / 24)**4+0.1)
+                else:
+                    isAfterLastEnemyPiece = lastPieces[Color.WHITE] > i
+                    # black alone piece
+                    if not isAfterLastEnemyPiece or self.cuptured[Color.WHITE]!=0:
+                        score += 8 * (4*((23-i) / 24)**4+0.1)
+            elif abs(p) >= 2:
+                # the more controlled squares the better
+                if p > 0:
+                    score += 8 * (2*(i / 24)**4+0.1)
+                else:
+                    score -= 8 * (2*((23-i) / 24)**4+0.1)
         return score
 
     def Evalutate(self, depth = 0) -> float:
@@ -399,31 +424,23 @@ class Board(BoardState):
             score = self.GetCost()
             return score
         
+        selfNext = self.Commit(add_to_history=False)
+        
         for dices in [(i, j) for i in range(1, 7) for j in range(1, 7)]:
-            tmpBoard = Board.From(self)
+            tmpBoard = Board.From(selfNext)
             tmpBoard.dices = [-1, -1]
             tmpBoard.rollDiseAction(RollDiceAction([dices[0], dices[1]]))
 
             # for i in all action combinations of available actions - GetMovesForDices
-            for moves, _ in tmpBoard.GetMovesForDices():
-                tmpBoard2 = Board.From(tmpBoard)
-                for move in moves:
-                    tmpBoard2.ExecuteAction(move)
-                    tmpBoard2 = tmpBoard2.Commit(add_to_history=False)
-                
-                # for each action combination, calculate the best states and average the cost
-                score += tmpBoard2.Evalutate(depth - 1)
+            moves, _ = tmpBoard.GetBestMovesForDices()
+            tmpBoard2 = Board.From(tmpBoard)
+            for move in moves:
+                tmpBoard2.ExecuteAction(move)
+                tmpBoard2 = tmpBoard2.Commit(add_to_history=False)
+            
+            # for each action combination, calculate the best states and average the cost
+            score += tmpBoard2.Evalutate(depth - 1)
         return score / 36
-        
-        # for each dice combination, calculate the best states and average the cost
-        # total_cost = 0
-        # for dices in [(i, j) for i in range(1, 7) for j in range(1, 7)]:
-        #     tmpBoard = Board.From(self)
-        #     tmpBoard.dices = [-1, -1]
-        #     tmpBoard.rollDiseAction(RollDiceAction(dices))
-        #     best_moves, best_score = self.GetBestMovesForDices(depth - 1)
-        #     total_cost += best_score
-        # return total_cost / 36
         
     def GetBestMovesForDices(self, depth = 0) -> tuple[list[Action], float]:
         assert self.dices != [-1, -1], "You must roll the dices before making a move"

@@ -5,7 +5,7 @@ display_info = pygame.display.Info()
 screen_width = display_info.current_w
 screen_height = display_info.current_h
 
-persent = 0.8
+persent = 0.5
 
 # scale = 0.5
 scale = min(screen_width, screen_height) * persent / 1024
